@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Book;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Storage;
 
 class BookService
 {
@@ -27,17 +28,76 @@ class BookService
         return $books->paginate($perPage);
     }
 
-    /**
-     * Create a new book.
-     *
-     * @param array $data
-     * @return \App\Models\Book
-     */
     public function createBook(array $data)
     {
-        // Create a new book record with the provided data
-        return Book::create($data);
+        DB::beginTransaction();
+
+        try {
+            // Check if an image file is present in the data
+            if (isset($data['image'])) {
+                $file = $data['image'];
+                $originalName = $file->getClientOriginalName();
+
+                // Check for double extensions in the file name
+                if (preg_match('/\.[^.]+\./', $originalName)) {
+                    throw new Exception(trans('general.notAllowedAction'), 403);
+                }
+
+                // Validate the MIME type and extension
+                $allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif'];
+                $allowedExtensions = ['jpeg', 'jpg', 'png', 'gif'];
+                $mime_type = $file->getClientMimeType();
+                $extension = $file->getClientOriginalExtension();
+
+                if (!in_array($mime_type, $allowedMimeTypes) || !in_array($extension, $allowedExtensions)) {
+                    throw new Exception(trans('general.invalidFileType'), 403);
+                }
+
+                // Sanitize the file name to prevent path traversal
+                $fileName = Str::random(32);
+                $fileName = preg_replace('/[^A-Za-z0-9_\-]/', '', $fileName);
+
+                // Store the file in the 'public' disk
+                $path = $file->storeAs('images', $fileName . '.' . $extension, 'public');
+
+                // Verify the path to ensure it matches the expected pattern
+                $expectedPath = storage_path('app/public/images/' . $fileName . '.' . $extension);
+                if (realpath(storage_path('app/public') . '/' . $path) !== $expectedPath) {
+                    Storage::disk('public')->delete($path);
+                    throw new Exception(trans('general.notAllowedAction'), 403);
+                }
+
+                // Get the URL of the stored file
+                $url = Storage::disk('public')->url($path);
+
+                // Add the image URL to the data array
+                $data['image_url'] = $url;
+
+                // Remove the image file from the data array
+                unset($data['image']);
+            }
+
+            // Create a new book record with the provided data
+            $book = Book::create($data);
+
+            // Commit the transaction
+            DB::commit();
+
+            return $book;
+        } catch (Exception $e) {
+            // Rollback the transaction on failure
+            DB::rollBack();
+
+            // Delete the file if it was stored
+            if (isset($path)) {
+                Storage::disk('public')->delete($path);
+            }
+
+            throw $e;
+        }
     }
+
+
 
     /**
      * Get the details of a specific book by its ID.
