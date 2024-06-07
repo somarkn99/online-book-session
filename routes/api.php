@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\AuthorController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -39,4 +40,12 @@ Route::prefix('v1')->group(function () {
          */
         Route::post('logout', 'logout')->middleware('auth:api');
     });
+
+    /**
+     * Author Management Routes
+     *
+     * These routes handle author management operations.
+     */
+    Route::apiResource('authors', AuthorController::class)->middleware(['auth:api'])->except(['index', 'show']);
+
 });
