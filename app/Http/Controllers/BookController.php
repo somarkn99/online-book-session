@@ -24,6 +24,9 @@ class BookController extends Controller
     public function __construct(BookService $bookService)
     {
         $this->bookService = $bookService;
+        $this->middleware(['auth:api', 'permission:Create-Book'])->only('store');
+        $this->middleware(['auth:api', 'permission:Update-Book'])->only('update');
+        $this->middleware(['auth:api', 'permission:Delete-Book'])->only('destroy');
     }
 
     /**

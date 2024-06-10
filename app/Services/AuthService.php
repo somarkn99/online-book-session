@@ -36,6 +36,8 @@ class AuthService
             'password' => Hash::make($data['password']),
         ]);
 
+        $user->assignRole('client');
+
         $token = Auth::login($user);
 
         return [

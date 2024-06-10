@@ -16,16 +16,26 @@ class BookService
      */
     public function listBooks(array $filters, int $perPage): LengthAwarePaginator
     {
-        // Initialize the query builder for the Book model
-        $books = Book::query();
+        // Generate a unique cache key based on filters and pagination
+        $cacheKey = 'books_' . md5(json_encode($filters) . $perPage . request('page', 1));
 
-        // Apply author filter if provided
-        if (isset($filters['author'])) {
-            $books->where('author_id', $filters['author']);
-        }
+        // Check if the cached result exists
+        $books = Cache::remember($cacheKey, now()->addMinutes(10), function () use ($filters, $perPage) {
+            // Initialize the query builder for the Book model
+            $booksQuery = Book::query();
 
-        // Return the paginated result of the query
-        return $books->paginate($perPage);
+            // Apply author filter if provided
+            if (isset($filters['author'])) {
+                $booksQuery->where('author_id', $filters['author']);
+            }
+
+            $booksQuery->select(['name', 'image', 'author']);
+
+            // Return the paginated result of the query
+            return $booksQuery->paginate($perPage);
+        });
+
+        return $books;
     }
 
     public function createBook(array $data)
